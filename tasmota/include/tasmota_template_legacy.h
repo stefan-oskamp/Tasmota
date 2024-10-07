@@ -471,7 +471,9 @@ const uint16_t kGpioConvert[] PROGMEM = {
   AGPIO(GPIO_IEM3000_TX),     // IEM3000 Serial interface
   AGPIO(GPIO_IEM3000_RX),     // IEM3000 Serial interface
   AGPIO(GPIO_ZIGBEE_RST),     // Zigbee reset
-  AGPIO(GPIO_DYP_RX)
+  AGPIO(GPIO_DYP_RX),
+  AGPIO(GPIO_TM1640CLK),      // TM1640 Clock
+  AGPIO(GPIO_TM1640DIN)      // TM1640 Data
 };
 
 /********************************************************************************************/

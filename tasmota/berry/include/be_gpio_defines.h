@@ -322,6 +322,8 @@ const be_const_member_t lv_gpio_constants[] = {
     { "TM1638CLK", (int32_t) GPIO_TM1638CLK },
     { "TM1638DIO", (int32_t) GPIO_TM1638DIO },
     { "TM1638STB", (int32_t) GPIO_TM1638STB },
+    { "TM1640CLK", (int32_t) GPIO_TM1640CLK },
+    { "TM1640DIO", (int32_t) GPIO_TM1640DIN },
     { "TS_IRQ", (int32_t) GPIO_TS_IRQ },
     { "TS_RST", (int32_t) GPIO_TS_RST },
     { "TS_SPI_CS", (int32_t) GPIO_TS_SPI_CS },

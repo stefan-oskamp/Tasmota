@@ -224,6 +224,7 @@ enum UserSelectablePins {
   GPIO_WOOLIIS_RX,                      // Wooliis Battery capacity monitor Serial RX
   GPIO_ADC_VOLTAGE, GPIO_ADC_CURRENT,   // Analog Voltage and Current
   GPIO_BL0906_RX,                       // BL0906 Serial interface
+  GPIO_TM1640CLK, GPIO_TM1640DIN,       // TM1640 (16 x seven-segment LED controler)
   GPIO_SENSOR_END };
 
 // Error as warning to rethink GPIO usage with max 2045
@@ -495,6 +496,7 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_WOOLIIS_RX "|"
   D_SENSOR_ADC_VOLTAGE "|" D_SENSOR_ADC_CURRENT "|"
   D_SENSOR_BL0906_RX "|"
+  D_SENSOR_TM1640_CLK "|" D_SENSOR_TM1640_DIN "|"
   ;
 
 const char kSensorNamesFixed[] PROGMEM =
@@ -871,6 +873,11 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_TFMINIPLUS_TX),            // TFmini Plus TX pin
   AGPIO(GPIO_TFMINIPLUS_RX),            // TFmini Plus RX pin
 #endif
+#ifdef USE_TM1640
+  AGPIO(GPIO_TM1640CLK),
+  AGPIO(GPIO_TM1640DIN),
+#endif  // USE_DISPLAY_IOTTIMER
+
 
 /*-------------------------------------------------------------------------------------------*\
  * Energy sensors
