@@ -161,17 +161,23 @@ void TM1640Power(void) {
 
 void TM1640Loop (void) {
   static uint8_t leds[TM1640_MAX_LEDS];
-  static int i = 127;
-  static int j = 8;
+  static int i = 15;
+  static int j = 7;
+  static int k = 8;
 
-  leds[i / 8] = 0;
-  if (j++ > 8) {
-    j = 0;
-    i = (i + 1) % 128;
+  if (++k > 8) {
+    k = 0;
+    if (++j > 7) {
+      j = 0;
+      leds[i] = 0;
+      if (++i > 15) {
+        i = 0;
+      }
+    }
   }
-  leds[i / 8] = 1 << i % 8;
+  leds[i] |= 1 << j;
 
-  TM1640SetBrightness(j);
+  TM1640SetBrightness(k);
   TM1640SendDataArray(0, leds, sizeof(leds));
 }
 
