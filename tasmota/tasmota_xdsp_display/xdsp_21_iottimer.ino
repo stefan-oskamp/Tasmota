@@ -897,7 +897,7 @@ void IOTTIMERShowTime(void)
   uint8_t hour = RtcTime.hour;
   uint8_t min = RtcTime.minute;
   uint8_t sec = RtcTime.second;
-  
+
   if (!IOTTIMERData.clock_24)
   {
     if (hour > 12)
@@ -907,15 +907,15 @@ void IOTTIMERShowTime(void)
   }
 
   if (T_IOTTIMER == Settings->display_options.type) {
-    IOTTIMERDisplay[12] = IOTTIMERDisplay[13] = IOTTIMERFont['0' + hour / 10];
+    IOTTIMERDisplay[12] = IOTTIMERDisplay[13] = hour / 10 == 0 ? 0 : IOTTIMERFont['0' + hour / 10];
     IOTTIMERDisplay[14] = IOTTIMERDisplay[15] = IOTTIMERFont['0' + hour % 10];
     IOTTIMERDisplay[4]  = IOTTIMERDisplay[5] = IOTTIMERFont['0' + min / 10];
     IOTTIMERDisplay[11] = IOTTIMERDisplay[1] = IOTTIMERFont['0' + min % 10];
     
-    if (IOTTIMERData.clock_colon_state) {
+    // if (IOTTIMERData.clock_colon_state) {
       IOTTIMERDisplay[4]  |= 1 << IOTTIMER_DOT_BIT;
       IOTTIMERDisplay[14] |= 1 << IOTTIMER_DOT_BIT;
-    }  
+    // }  
     
     IOTTIMERDisplay[6] = IOTTIMERFont['0' + sec / 10];
     IOTTIMERDisplay[7] = IOTTIMERFont['0' + sec % 10];
