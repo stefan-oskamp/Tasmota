@@ -76,8 +76,8 @@
   GPIO13 --> "IOTTIMER CLK"
 
   Once the GPIO configuration is saved and the ESP8266/ESP32 module restarts, set the Display
-  Model to 21 and Display Mode to 0 using the command "Backlog DisplayModel 20 ; DisplayMode 0;"
-  Before using it set the Display Type to 0 (for IOTTIMER) using the "DisplayType 0" command.
+  Model to 21 and Display Mode to 0 using the command "Backlog DisplayModel 21 ; DisplayMode 0;"
+  Before using it, set the Display Type to 0 (for IOTTIMER) using the "DisplayType 0" command.
 
   After the ESP8266 restarts again, turn ON the display with the command "Power 1"
 
@@ -173,74 +173,105 @@ for the time and seconds you want to show the time before displaying the date)
 \*********************************************************************************************/
 
 
-#define XDSP_21                   21
+#define XDSP_21                    21
 
-#define CMD_MAX_LEN               55
-#define LEVEL_MIN                 0
+#define CMD_MAX_LEN                55
+#define LEVEL_MIN                   0
 #define LEVEL_MAX                 100
-#define SCROLL_MAX_LEN            50
+#define SCROLL_MAX_LEN             50
 
-#define IOTTIMER_DIGITS           9   // 4 (left) + 2 (lower right) + 3 (upper right).
+#define IOTTIMER_DIGITS            16
+#define IOTTIMER_DOT_BIT            2
 
-// IOTTIMER display bits:
-#define IOTTIMER_DISPLAY_DOT       7
+static unsigned char IOTTIMERDisplay[IOTTIMER_DIGITS];
 
-// IOTTIMER Control bits:
-#define IOTTIMER_CONTROL_ON          0
-#define IOTTIMER_CONTROL_RESERVED1   1
-#define IOTTIMER_CONTROL_RESERVED2   2
-#define IOTTIMER_CONTROL_DOT         3   // Dots can be switched on/off with both control and display.
-#define IOTTIMER_CONTROL_BRIGHTNESS  4   // Bits 4...6
-#define IOTTIMER_CONTROL_RESERVED3   7
-
-#include <Wire.h>
-
-static unsigned char IOTTIMERControl[IOTTIMER_DIGITS] = {0, 0, 0, 0};
-static unsigned char IOTTIMERDisplay[IOTTIMER_DIGITS] = {0, 0, 0, 0};
-
+// Wiring of the LEDs (per digit):
+//
+//    Seg#        Bit         Hex
+//     07         06          40
+//   08  01     07  00      80  01
+//     02         01          02
+//   06  04     05  03      20  08
+//     05   03    04   02     10   04
+//
+// Font as per wiring:
 static const byte IOTTIMERFont[128] {
 //0x00  0x01  0x02  0x03  0x04  0x05  0x06  0x07  0x08  0x09  0x0A  0x0B  0x0C  0x0D  0x0E  0x0F
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0x00
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0x10
 //      !     "                             '     (     )                       -
-  0x00, 0x82, 0x21, 0x00, 0x00, 0x00, 0x00, 0x02, 0x39, 0x0F, 0x00, 0x00, 0x00, 0x40, 0x80, 0x00, // 0x20
+  0x00, 0xA0, 0x81, 0x00, 0x00, 0x00, 0x00, 0x01, 0xF0, 0x59, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, // 0x20
 //0     1     2     3     4     5     6     7     8     9                       =           ?
-  0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7f, 0x6f, 0x00, 0x00, 0x00, 0x48, 0x00, 0x53, // 0x30
+  0xF9, 0x09, 0x73, 0x5B, 0x8B, 0xDA, 0xFA, 0x49, 0xFB, 0xDB, 0x00, 0x00, 0x00, 0x12, 0x00, 0x63, // 0x30
 //      A     B     C     D     E     F     G     H     I     J           L           N     O
-  0x00, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71, 0x6F, 0x76, 0x06, 0x1E, 0x00, 0x38, 0x00, 0x54, 0x3F, // 0x40
+  0x00, 0xEB, 0xBA, 0xF0, 0x3B, 0xF2, 0xE2, 0xFA, 0xAB, 0x09, 0x19, 0x00, 0xB0, 0x00, 0xE9, 0xF9, // 0x40
 //P     Q     R     S     T     U                       Y           [           ]     ^=°   _
-  0x73, 0x67, 0x50, 0x6D, 0x78, 0x3E, 0x00, 0x00, 0x00, 0x6E, 0x00, 0x39, 0x00, 0x0F, 0x63, 0x08, // 0x50 
+  0xE3, 0xAB, 0x22, 0xDA, 0xB2, 0xB9, 0x00, 0x00, 0x00, 0x4B, 0x00, 0xF0, 0x00, 0x59, 0xC3, 0x10, // 0x50 
 //`=°   a     b     c     d     e     f     g     h     i     j           l           n     o
-  0x63, 0x5F, 0x7C, 0x58, 0x5E, 0x7B, 0x71, 0x6F, 0x74, 0x02, 0x1E, 0x00, 0x06, 0x00, 0x54, 0x5C, // 0x60
+  0x01, 0x7B, 0xBA, 0x32, 0x3B, 0xF3, 0xE2, 0xDB, 0xAA, 0x08, 0x19, 0x00, 0x09, 0x00, 0x2A, 0x3A, // 0x60
 //p     q     r     s     t     u                       y           {     |     }
-  0x73, 0x67, 0x50, 0x6D, 0x78, 0x1C, 0x00, 0x00, 0x00, 0x6E, 0x00, 0x39, 0x30, 0x0F, 0x00, 0x00  // 0x70
+  0xE3, 0xAB, 0x22, 0xDA, 0xB2, 0x38, 0x00, 0x00, 0x00, 0x4B, 0x00, 0x0B, 0x09, 0xA2, 0x00, 0x00  // 0x70
 };
 
 enum display_options_types
 {
-  IOTTIMER, // IOTTIMER WiFi clock
-  SOMETHINGELSE
+  T_IOTTIMER, // IOTTIMER WiFi clock
+  T_SOMETHINGELSE
 };
 
 struct
 {
-  uint8_t clk
   char scroll_text[CMD_MAX_LEN];
   char msg[60];
-  char model_name[8];
+  char model_name[9];
   uint8_t scroll_delay = 4;
   uint8_t scroll_index = 0;
   uint8_t iteration = 0;
   uint8_t scroll_counter = 0;
   uint8_t scroll_counter_max = 3;
   uint8_t display_type = XDSP_21; 
-
   bool init_driver_done = false;
   bool scroll = false;
   bool show_clock = false;
   bool clock_24 = false;
-  bool clock_blynk_dots = true;
+  bool clock_colon_state = false;
 } IOTTIMERData;
+
+
+
+void IOTTIMERDim(void)
+{
+  TM1640SetBrightness (changeUIntScale(GetDisplayDimmer(), 0, 100, 0, 8));
+}
+
+void IOTTIMERDisplayOn (void)
+{
+  IOTTIMERDim();
+}
+
+void IOTTIMERDisplayOff (void)
+{
+  TM1640SetBrightness (0);
+}
+
+void IOTTIMERDisplayOnOff(void)
+{
+  if (disp_power) {
+    IOTTIMERDisplayOn();
+  }
+  else {
+    IOTTIMERDisplayOff();
+  }
+}
+
+void IOTTIMERClearDisplay (void)
+{
+  for (int i = 0; i < IOTTIMER_DIGITS; i++) {
+	  IOTTIMERDisplay[i] = 0;
+  }
+  TM1640SendDataArray(0, IOTTIMERDisplay, IOTTIMER_DIGITS);
+}
+
 
 /*********************************************************************************************\
 * Init function
@@ -265,87 +296,37 @@ void IOTTIMERInit(uint8_t mode)
 \*********************************************************************************************/
 void IOTTIMERInitDriver(void)
 {
-  if (!TasmotaGlobal.i2c_enabled) {
-    return;
-  }
-
   if (!Settings->display_model) {
-    if (I2cSetDevice(IOTTIMER_CONTROL_BASE)) {
-      Settings->display_address[0] = IOTTIMER_CONTROL_BASE;
-      Settings->display_model = XDSP_20;
-    }
+    TM1640Init();
+    Settings->display_model = XDSP_21;
   }
 
-  if (XDSP_20 == Settings->display_model) {
-    I2cSetActiveFound(Settings->display_address[0], "IOTTIMER");
-
-    Settings->display_cols[0] = 4;
+  if (XDSP_21 == Settings->display_model) {
+    Settings->display_cols[0] = 9;   // 4 (left) + 2 (lower right) + 3 (upper right).
     Settings->display_rows = 1;
     Settings->display_width = Settings->display_cols[0];
     Settings->display_height = Settings->display_rows;
 
-    if (T_XY_CLOCK == Settings->display_options.type)
+    if (T_IOTTIMER == Settings->display_options.type)
     {
-      strcpy_P(IOTTIMERData.model_name, PSTR("XY-Clock"));
+      strcpy_P(IOTTIMERData.model_name, PSTR("IOTTIMER"));
     }
-    else if (NOTUSED == Settings->display_options.type)
+    else if (T_SOMETHINGELSE == Settings->display_options.type)
     {
-      strcpy_P(IOTTIMERData.model_name, PSTR("NOTUSED"));
-    }
-    else if (T_303WIFILC01 == Settings->display_options.type)
-    {
-      strcpy_P(IOTTIMERData.model_name, PSTR("303WiFiLC01"));
+      strcpy_P(IOTTIMERData.model_name, PSTR("SOMETHINGELSE"));
     }
 
     IOTTIMERDim();
     IOTTIMERClearDisplay();
 
-    AddLog(LOG_LEVEL_INFO, PSTR("DSP: IOTTIMER \"%s\" with %d digits (type %d)"), IOTTIMERData.model_name, Settings->display_width, Settings->display_options.type);
+    AddLog(
+      LOG_LEVEL_INFO, PSTR("DSP: IOTTIMER \"%s\" with %d digits (type %d)"),
+      IOTTIMERData.model_name, Settings->display_width, Settings->display_options.type
+    );
     IOTTIMERData.init_driver_done = true;
   }
 }
 
-void IOTTIMERDisplayOn ()
-{
-  for (int i = 0; i < IOTTIMER_DIGITS; i++) {
-  	IOTTIMERControl[i] |= _BV(IOTTIMER_CONTROL_ON);
-    Wire.beginTransmission(IOTTIMER_CONTROL_BASE + i);
-    Wire.write(IOTTIMERControl[i]);
-    Wire.endTransmission();
-  }
-}
-
-void IOTTIMERDisplayOff ()
-{
-  for (int i = 0; i < IOTTIMER_DIGITS; i++) {
-	  IOTTIMERControl[i] &= ~_BV(IOTTIMER_CONTROL_ON);
-    Wire.beginTransmission(IOTTIMER_CONTROL_BASE + i);
-    Wire.write(IOTTIMERControl[i]);
-    Wire.endTransmission();
-  }
-}
-
-void IOTTIMERDisplayOnOff()
-{
-  if (disp_power) {
-    IOTTIMERDisplayOn();
-  }
-  else {
-    IOTTIMERDisplayOff();
-  }
-}
-
-void IOTTIMERSetBrightness (unsigned int level)
-{
-  if (level > 0b111) level = 0b111;
-
-  for (int i = 0; i < IOTTIMER_DIGITS; i++) {
-	  IOTTIMERControl[i] = IOTTIMERControl[i] & ~(0b111 << IOTTIMER_CONTROL_BRIGHTNESS) | level << IOTTIMER_CONTROL_BRIGHTNESS;
-    Wire.beginTransmission(IOTTIMER_CONTROL_BASE + i);
-    Wire.write(IOTTIMERControl[i]);
-    Wire.endTransmission();
-  }
-}
 
 
 void IOTTIMERDisplayText (char *text)  // Text shall match regex (([^.]?\.?){0,4}\0), e.g., 123.4 or 8.8.8.8 for full digit
@@ -359,49 +340,21 @@ void IOTTIMERDisplayText (char *text)  // Text shall match regex (([^.]?\.?){0,4
       }
       else {  // Something to display.
         char c = *text++;
-        IOTTIMERDisplay[i] = IOTTIMERFont[c & ~_BV(IOTTIMER_DISPLAY_DOT)];
+        IOTTIMERDisplay[i] = IOTTIMERFont[c];
       }
 
       if (*text == '.') {
         char c = *text++;
-        IOTTIMERDisplay[i] |= _BV(IOTTIMER_DISPLAY_DOT);
-      }
-
-      if (T_303WIFILC01 == Settings->display_options.type) {
-        IOTTIMERDisplay[i] = swapbits(IOTTIMERDisplay[i]); // 303WIFILC01 board has special wiring
+        IOTTIMERDisplay[i] |= 1 << IOTTIMER_DOT_BIT;
       }
     }
     else {
       IOTTIMERDisplay[i] = 0;  // Clear digits after the text.
     }
-    Wire.beginTransmission(IOTTIMER_DISPLAY_BASE + i);
-    Wire.write(IOTTIMERDisplay[i]);
-    Wire.endTransmission();
-  }
-}
+  } // End for all digits.
+  TM1640SendDataArray(0, IOTTIMERDisplay, IOTTIMER_DIGITS);
+} // End IOTTIMERDisplayText()
 
-uint8_t swapbits(uint8_t n)
-{
-    // For model 303WiFiLC01 board has different segments wiring  
-    // PGFEDCBA -> BFAEDCGP
- 
-            //seg EDC    //seg A             //seg B
-     return (n & 0x1C) | ((n & 0x01) << 5) | ((n & 0x02) << 6)
-     | ((n & 0x20) << 1) | ((n & 0x40) >> 5) | ((n & 0x80) >> 7); 
-       //seg F             //seg G             //seg P
-}  
-
-void IOTTIMERDisplayRaw (char *text)  // Text shall match regex (([^.]?\.?){0,4}\0), e.g., 123.4
-{
-  for (int i = 0; i < IOTTIMER_DIGITS; i++) {
-    char c = *text++;
-    IOTTIMERDisplay[i] = c;
-    //AddLog(LOG_LEVEL_DEBUG, PSTR("Raw Digit(%d - %d - %c)"), i, IOTTIMERDisplay[i], IOTTIMERDisplay[i]);
-    Wire.beginTransmission(IOTTIMER_DISPLAY_BASE + i);
-    Wire.write(IOTTIMERDisplay[i]);
-    Wire.endTransmission();
-  }
-}
 
 
 /*********************************************************************************************\
@@ -562,7 +515,7 @@ bool CmndIOTTIMERFloat(bool clear)
     text[j] = ' ';
   }
 
-  if (T_XY_CLOCK == Settings->display_options.type) {
+  if (T_IOTTIMER == Settings->display_options.type) {
 
     for (uint32_t j = 0; i < position + length + dots; i++, j++)
     {
@@ -590,14 +543,7 @@ bool CmndIOTTIMERFloat(bool clear)
       }
       text[i] = txt[j];
     }
-
   }
-  else if (T_303WIFILC01 == Settings->display_options.type) {
-     //todo
-     AddLog(LOG_LEVEL_INFO, PSTR("TM5: DisplayFloat not implemented yet for display type: 303WifiClock"));
-     return false;
-  }
-
   text[i] = 0; //string termination
 
   IOTTIMERDisplayText(text);
@@ -614,19 +560,6 @@ bool CmndIOTTIMERClear(void)
   sprintf(IOTTIMERData.msg, PSTR("Cleared"));
   XdrvMailbox.data = IOTTIMERData.msg;
   return true;
-}
-
-// /*********************************************************************************************\
-// * Clears the display
-// \*********************************************************************************************/
-void IOTTIMERClearDisplay (void)
-{
-  for (int i = 0; i < IOTTIMER_DIGITS; i++) {
-	  IOTTIMERDisplay[i] = 0;
-    Wire.beginTransmission(IOTTIMER_DISPLAY_BASE + i);
-    Wire.write(IOTTIMERDisplay[i]);
-    Wire.endTransmission();
-  }
 }
 
 /*********************************************************************************************\
@@ -746,12 +679,6 @@ bool CmndIOTTIMERLevel(void)
     return false;
   }
 
-  char text[IOTTIMER_DIGITS + 1];
-  for (uint32_t i = 0; i < IOTTIMER_DIGITS; i++)
-  {
-     text[i]=0;
-  }
-
   uint8_t totalBars = 2 * Settings->display_width;
   AddLog(LOG_LEVEL_DEBUG, PSTR("TM5: CmndIOTTIMERLevel totalBars=%d"), totalBars);
   float barsToDisplay = totalBars * val / 100.0f;
@@ -763,28 +690,17 @@ bool CmndIOTTIMERLevel(void)
   uint8_t numBars = atoi(s);
   AddLog(LOG_LEVEL_DEBUG, PSTR("TM5: CmndIOTTIMERLevel numBars %d"), numBars);
 
-  IOTTIMERClearDisplay();
-
-  uint8_t digit = numBars / 2;
-  uint8_t remainder = numBars % 2;
-
-  for (uint32_t i = 0; i < IOTTIMER_DIGITS; i++)
-  {
-    if (i >= Settings->display_width)
-      break;
-    if(i<digit) {
-      text[i] = 0x36;
-    }
-    else if(i == digit && remainder == 1) {
-       text[i] = 0x30;
-    }
-    else {
-      text[i] = 0;
-    }
+  uint32_t i = 0;
+  while (i < numBars / 2 && i < IOTTIMER_DIGITS) {
+    IOTTIMERDisplay[i++] = 0xA9;  // ||
   }
-
-  IOTTIMERDisplayRaw(text);
-
+  if (i < IOTTIMER_DIGITS && numBars % 2) {
+    IOTTIMERDisplay[i++] = 0xA0;  // |
+  }
+  while (i < IOTTIMER_DIGITS) {
+    IOTTIMERDisplay[i++] = 0;
+  }
+  TM1640SendDataArray(0, IOTTIMERDisplay, IOTTIMER_DIGITS);
   return true;
 }
 
@@ -801,7 +717,7 @@ bool CmndIOTTIMERRaw(void)
   char text[IOTTIMER_DIGITS + 1];
   for (uint32_t i = 0; i < IOTTIMER_DIGITS; i++)
   {
-     text[i]=0;
+     text[i] = 0;
   }
 
   uint8_t DATA[4] = {0, 0, 0, 0};
@@ -810,7 +726,6 @@ bool CmndIOTTIMERRaw(void)
   char bs[CMD_MAX_LEN];
   char cs[CMD_MAX_LEN];
   char ds[CMD_MAX_LEN];
-
 
   char sLength[CMD_MAX_LEN];
   char sPos[CMD_MAX_LEN];
@@ -840,27 +755,29 @@ bool CmndIOTTIMERRaw(void)
     position = atoi(sPos);
   }
 
-  if (!length)
+  if (length == 0) {
     length = ArgC() - 2;
-  if (length < 0 || length > Settings->display_width)
-    length = Settings->display_width;
-  if (position < 0 || position > (Settings->display_width - 1))
+  }
+  if (position < 0) {
     position = 0;
+  }
+  else if (position >= Settings->display_width) {
+    position = Settings->display_width - 1;
+  }
+  if (length < 0 || position + length > IOTTIMER_DIGITS) {
+    length = IOTTIMER_DIGITS - position;
+  }
 
   AddLog(LOG_LEVEL_DEBUG, PSTR("TM5: a %d, b %d, c %d, d %d, len %d, pos %d"),
          DATA[0], DATA[1], DATA[2], DATA[3], length, position);
 
-  for (uint32_t i = position; i < position + length; i++)
-  {
-    if (i >= Settings->display_width)
-      break;
-    text[i] = DATA[i - position];
+  for (uint32_t i = position; i < position + length; i++) {
+    IOTTIMERDisplay[i] = IOTTIMERFont[DATA[i - position]];
   }
-
-  IOTTIMERDisplayRaw(text);
+  TM1640SendDataArray(position, IOTTIMERDisplay, length);
 
   return true;
-}
+} // End CmndIOTTIMERRaw().
 
 /*********************************************************************************************\
 * Display a given string.
@@ -975,19 +892,11 @@ bool CmndIOTTIMERClock(void)
 /*********************************************************************************************\
 * refreshes the time if clock is displayed
 \*********************************************************************************************/
-void IOTTIMERShowTime()
+void IOTTIMERShowTime(void)
 {
-  IOTTIMERData.iteration++;
-  if (20 != IOTTIMERData.iteration) {
-    // every 20*50ms = 1000 ms should be enough
-    return;
-  }
-  IOTTIMERData.iteration = 0;
-
-  char text[IOTTIMER_DIGITS + 2 + 1];
-  int i = 0;
   uint8_t hour = RtcTime.hour;
   uint8_t min = RtcTime.minute;
+  uint8_t sec = RtcTime.second;
   
   if (!IOTTIMERData.clock_24)
   {
@@ -997,30 +906,22 @@ void IOTTIMERShowTime()
       hour = 12;
   }
 
-  text[i++] = '0' + hour / 10;
-  text[i++] = '0' + hour % 10;
-
-  if (T_XY_CLOCK == Settings->display_options.type) {
-    text[i++] = '0' + min / 10;
-    if(IOTTIMERData.clock_blynk_dots)  text[i++] = '.';  // Lower half of the colon, depending on how the LEDs are connected to the IOTTIMER in the XY-Clock.
-    text[i++] = '0' + min % 10;
-    if(IOTTIMERData.clock_blynk_dots)  text[i++] = '.';  // Upper half of the colon.
+  if (T_IOTTIMER == Settings->display_options.type) {
+    IOTTIMERDisplay[12] = IOTTIMERDisplay[13] = IOTTIMERFont['0' + hour / 10];
+    IOTTIMERDisplay[14] = IOTTIMERDisplay[15] = IOTTIMERFont['0' + hour % 10];
+    IOTTIMERDisplay[4]  = IOTTIMERDisplay[5] = IOTTIMERFont['0' + min / 10];
+    IOTTIMERDisplay[11] = IOTTIMERDisplay[1] = IOTTIMERFont['0' + min % 10];
+    
+    if (IOTTIMERData.clock_colon_state) {
+      IOTTIMERDisplay[4]  |= 1 << IOTTIMER_DOT_BIT;
+      IOTTIMERDisplay[14] |= 1 << IOTTIMER_DOT_BIT;
+    }  
+    
+    IOTTIMERDisplay[6] = IOTTIMERFont['0' + sec / 10];
+    IOTTIMERDisplay[7] = IOTTIMERFont['0' + sec % 10];
   }
-  else if (T_303WIFILC01 == Settings->display_options.type) {
-    if(IOTTIMERData.clock_blynk_dots) text[i++] = '.';  // Colon for 303WIFILC01
-    text[i++] = '0' + min / 10;
-    text[i++] = '0' + min % 10;
-  }
-
-  text[i++] = 0;
-
-  if (!IOTTIMERData.clock_24 && text[0] == '0')
-  {
-    text[0] = ' ';
-  }
-  
-  IOTTIMERData.clock_blynk_dots = !IOTTIMERData.clock_blynk_dots;
-  IOTTIMERDisplayText(text);
+  IOTTIMERData.clock_colon_state = !IOTTIMERData.clock_colon_state;
+  TM1640SendDataArray(0, IOTTIMERDisplay, IOTTIMER_DIGITS);
 }
 
 /*********************************************************************************************\
@@ -1080,54 +981,11 @@ bool IOTTIMERMainFunc(uint8_t fn)
 }
 
 
-void IOTTIMERDim(void)
-{
-  int brightness = GetDisplayDimmer16();
-  if (brightness < 2) {
-    IOTTIMERDisplayOff();
-  }
-  else if (brightness > 14) {
-    IOTTIMERDisplayOn();
-    IOTTIMERSetBrightness(0); // In IOTTIMER, brightness 0 means max brightness (level 8).
-    IOTTIMERDisplayOn();
-  }
-  else {
-    // Map 2...14 to 1...7:
-    IOTTIMERSetBrightness(brightness >> 1);
-    IOTTIMERDisplayOn();
-  }
-}
 
 
 /*********************************************************************************************/
 
 #ifdef USE_DISPLAY_MODES1TO5
-
-void IOTTIMERTime(void)
-{
-  char text[IOTTIMER_DIGITS + 2 + 1];
-  int i = 0;
-
-  text[i++] = '0' + RtcTime.hour / 10;
-  text[i++] = '0' + RtcTime.hour % 10;
-
-  if (T_XY_CLOCK == Settings->display_options.type) {
-    text[i++] = '0' + RtcTime.minute / 10;
-    if(IOTTIMERData.clock_blynk_dots)  text[i++] = '.';  // Lower half of the colon, depending on how the LEDs are connected to the IOTTIMER in the XY-Clock.
-    text[i++] = '0' + RtcTime.minute % 10;
-    if(IOTTIMERData.clock_blynk_dots)  text[i++] = '.';  // Upper half of the colon.
-  }
-  else if (T_303WIFILC01 == Settings->display_options.type) {
-    if(IOTTIMERData.clock_blynk_dots) text[i++] = '.';  // Colon for 303WIFILC01
-    text[i++] = '0' + RtcTime.minute / 10;
-    text[i++] = '0' + RtcTime.minute % 10;
-  }
-
-  text[i++] = 0;
-  
-  IOTTIMERData.clock_blynk_dots = !IOTTIMERData.clock_blynk_dots;
-  IOTTIMERDisplayText(text);
-}
 
 void IOTTIMERDate(void)
 {
@@ -1137,15 +995,10 @@ void IOTTIMERDate(void)
   text[i++] = '0' + RtcTime.day_of_month / 10;
   text[i++] = '0' + RtcTime.day_of_month % 10;
   
-  if (T_XY_CLOCK == Settings->display_options.type) {
+  if (T_IOTTIMER == Settings->display_options.type) {
     text[i++] = '0' + RtcTime.month / 10;
     text[i++] = '0' + RtcTime.month % 10;
     text[i++] = '.';  // Lower half of the colon, depending on how the LEDs are connected to the IOTTIMER in the XY-Clock.
-  }
-  else if (T_303WIFILC01 == Settings->display_options.type ) {
-    text[i++] = '.';  // Colon for 303WIFILC01
-    text[i++] = '0' + RtcTime.month / 10;
-    text[i++] = '0' + RtcTime.month % 10;
   }
 
   text[i++] = 0;
@@ -1158,7 +1011,7 @@ void IOTTIMERRefresh(void)  // Every second
   if (Settings->display_mode) {  // Mode 0 is User text
     switch (Settings->display_mode) {
       case 1:  // Time
-        IOTTIMERTime();
+        IOTTIMERShowTime();
         break;
       case 2:  // Date
         IOTTIMERDate();
@@ -1166,7 +1019,7 @@ void IOTTIMERRefresh(void)  // Every second
       case 3: // Time/Date
         if (TasmotaGlobal.uptime % Settings->display_refresh)
         {
-          IOTTIMERTime();
+          IOTTIMERShowTime();
         }
         else
         {
@@ -1188,10 +1041,8 @@ void IOTTIMERRefresh(void)  // Every second
  * Interface
 \*********************************************************************************************/
 
-bool Xdsp20(uint32_t function)
+bool Xdsp21(uint32_t function)
 {
-  if (!I2cEnabled(XI2C_74)) { return false; }
-
   bool result = false;
 
   if (FUNC_DISPLAY_INIT_DRIVER == function)
@@ -1199,7 +1050,7 @@ bool Xdsp20(uint32_t function)
     IOTTIMERInitDriver();
   }
   else if ((IOTTIMERData.init_driver_done || FUNC_DISPLAY_MODEL == function) 
-           && (XDSP_20 == Settings->display_model)) {
+           && (XDSP_21 == Settings->display_model)) {
     switch (function) {
       case FUNC_DISPLAY_EVERY_50_MSECOND:
       if (disp_power && !Settings->display_mode)
