@@ -193,9 +193,9 @@ bool Xdrv91(uint32_t function) {
     TM1640Init();
   } else if (Tm1640.detected) {
     switch (function) {
-      case FUNC_EVERY_50_MSECOND:
-        TM1640Loop();
-        break;
+//      case FUNC_EVERY_50_MSECOND:
+//        TM1640Loop();
+//        break;
       case FUNC_SET_POWER:
         TM1640Power();
         break;
