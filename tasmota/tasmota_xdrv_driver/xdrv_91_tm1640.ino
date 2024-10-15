@@ -75,7 +75,7 @@ void TM1640Send(uint8_t data) {
 } // End TM1640Send()
 
 void TM1640SendData(uint8_t address, uint8_t data) {
-  // First, send data commaand using FIXED addressing:
+  // First, send data command using FIXED addressing:
   TM1640Start();
   TM1640Send(TM1640_CMD_DATA_FIXED);
   TM1640Stop();
@@ -87,7 +87,7 @@ void TM1640SendData(uint8_t address, uint8_t data) {
 } // End TM1640SendData()
 
 void TM1640SendDataArray(uint8_t address, uint8_t *data, uint8_t count) {
-  // First, send data commaand using AUTO addressing:
+  // First, send data command using AUTO addressing:
   TM1640Start();
   TM1640Send(TM1640_CMD_DATA_AUTO);
   TM1640Stop();
